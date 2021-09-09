@@ -1,0 +1,34 @@
+#!/bin/bash
+#PBS -l nodes=1:ppn=16
+#PBS -l walltime=02:00:00
+
+set -xe
+
+input=$(jq -r .bold config.json)
+mask=$(jq -r .mask config.json)
+radius=$(jq -r .radius config.json)
+smoothing_fwhm=$(jq -r .fwhm config.json)
+
+function ctr() {
+    time singularity run -e \
+        docker://anibalsolon/app-seed-corr:v0.0.1 $@
+}
+
+mkdir -p wd corr
+jq -r .seed config.json > wd/coords.txt
+ctr 3dUndump -prefix wd/sphere_mask.nii.gz -master $mask -srad $radius -xyz wd/coords.txt
+
+if [ "$smoothing_fwhm" != "0" ]; then
+    ctr 3dBlurToFWHM \
+        -input $input \
+        -mask $mask \
+        -prefix wd/$input \
+        -FWHM $smoothing_fwhm
+
+    input=wd/$input
+fi
+
+ctr 3dROIstats -mask wd/sphere_mask.nii.gz -nzmean -nobriklab -quiet $input > wd/stats.txt
+ctr 3dTcorr1D -mask $mask -prefix wd/corr.nii.gz -pearson $input wd/stats.txt
+ctr 3dcalc -a wd/corr.nii.gz -expr 'atanh(a)' -prefix wd/corr_z.nii.gz
+cp wd/corr_z.nii.gz corr/corr.nii.gz

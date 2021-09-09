@@ -1,0 +1,7 @@
+{
+    "bold": "bold.nii.gz",
+    "mask": "mask.nii.gz",
+    "seed": "0, −53, 26",
+    "radius": 5,
+    "fwhm": 4
+}
